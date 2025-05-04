@@ -1,89 +1,57 @@
 import cv2
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-from mediapipe.framework.formats import landmark_pb2
 
-
-# Drawing utils
+# Inicializando MediaPipe FaceMesh
 mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
 mp_face_mesh = mp.solutions.face_mesh
 
-# Cria opções do modelo
-base_options = python.BaseOptions(model_asset_path='face_landmarker_v2_with_blendshapes.task')
-options = vision.FaceLandmarkerOptions(
-    base_options=base_options,
-    output_face_blendshapes=False,
-    output_facial_transformation_matrixes=False,
-    num_faces=1
-)
+# Criando DrawingSpecs customizados
+landmark_spec = mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=0)
+connection_spec = mp_drawing.DrawingSpec(color=(128, 0, 128), thickness=2)
 
-# Cria o detector
-detector = vision.FaceLandmarker.create_from_options(options)
-
-# Inicia webcam
+# Captura da webcam
 cap = cv2.VideoCapture(0)
 
-while cap.isOpened():
-    success, frame = cap.read()
-    if not success:
-        print("Ignoring empty camera frame.")
-        continue
+with mp_face_mesh.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True,  # para incluir olhos e íris
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5) as face_mesh:
 
-    # Converte para RGB
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+    while cap.isOpened():
+        success, frame = cap.read()
+        if not success:
+            print("Falha ao capturar imagem da webcam")
+            break
 
-    # Detecta landmarks
-    detection_result = detector.detect(mp_image)
+        # Converte BGR para RGB
+        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image_rgb.flags.writeable = False
 
-    # Se encontrou rosto
-    if detection_result.face_landmarks:
-        h, w, _ = frame.shape
-        for face_landmarks in detection_result.face_landmarks:
-            # Converte para o formato NormalizedLandmarkList (pra DrawingUtils)
-            landmark_proto = landmark_pb2.NormalizedLandmarkList()
-            landmark_proto.landmark.extend([
-    landmark_pb2.NormalizedLandmark(
-        x=landmark.x,
-        y=landmark.y,
-        z=landmark.z
-    ) for landmark in face_landmarks
-])
+        # Processa a imagem
+        results = face_mesh.process(image_rgb)
 
-            # Desenha conexões de malha
-            mp_drawing.draw_landmarks(
-                image=frame,
-                landmark_list=landmark_proto,
-                connections=mp_face_mesh.FACEMESH_TESSELATION,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style()
-            )
+        # Converte de volta pra BGR pra OpenCV
+        image_rgb.flags.writeable = True
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
-            # Desenha contornos (boca, olhos, etc)
-            mp_drawing.draw_landmarks(
-                image=frame,
-                landmark_list=landmark_proto,
-                connections=mp_face_mesh.FACEMESH_CONTOURS,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_contours_style()
-            )
+        # Desenha os landmarks se houver
+        if results.multi_face_landmarks:
+            for face_landmarks in results.multi_face_landmarks:
+                mp_drawing.draw_landmarks(
+                    image=image_bgr,
+                    landmark_list=face_landmarks,
+                    connections=mp_face_mesh.FACEMESH_TESSELATION,
+                    landmark_drawing_spec=landmark_spec,
+                    connection_drawing_spec=connection_spec
+                )
 
-            # Desenha íris
-            mp_drawing.draw_landmarks(
-                image=frame,
-                landmark_list=landmark_proto,
-                connections=mp_face_mesh.FACEMESH_IRISES,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_iris_connections_style()
-            )
+        # Exibe o frame
+        cv2.imshow('FaceMesh Tracking', image_bgr)
 
-    # Mostra imagem
-    cv2.imshow('FaceLandmarker — Full Detail', frame)
-
-    if cv2.waitKey(5) & 0xFF == 27:
-        break
+        # Sai ao apertar ESC (27)
+        if cv2.waitKey(5) & 0xFF == 27:
+            break
 
 cap.release()
 cv2.destroyAllWindows()
