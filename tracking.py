@@ -45,6 +45,16 @@ with mp_face_mesh.FaceMesh(
                     landmark_drawing_spec=landmark_spec,
                     connection_drawing_spec=connection_spec
                 )
+            # Pega altura e largura da imagem pra converter coordenadas normalizadas
+            h, w, _ = image_bgr.shape
+
+            # Exemplo: desenha bolinha maior no landmark 1 (entre os olhos)
+            lm_index = 168  # pode trocar pelo número do ponto que quiser (vai mudar a posicao da bolinha)
+            landmark = face_landmarks.landmark[lm_index]
+            cx, cy = int(landmark.x * w), int(landmark.y * h)
+
+            # Desenha bolinha vermelha maior nesse ponto
+            cv2.circle(image_bgr, (cx, cy), 8, (0, 0, 255), -1)  # (imagem, centro, raio, cor, preenchimento)
 
         # Exibe o frame
         cv2.imshow('FaceMesh Tracking', image_bgr)
