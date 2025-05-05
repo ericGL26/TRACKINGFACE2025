@@ -13,7 +13,7 @@ connection_spec = mp_drawing.DrawingSpec(color=(128, 0, 128), thickness=2)
 cap = cv2.VideoCapture(0)
 
 with mp_face_mesh.FaceMesh(
-    max_num_faces=1,
+    max_num_faces=2,
     refine_landmarks=True,  # para incluir olhos e íris
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5) as face_mesh:
@@ -35,6 +35,9 @@ with mp_face_mesh.FaceMesh(
         image_rgb.flags.writeable = True
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
+        # Pega altura e largura da imagem pra converter coordenadas normalizadas
+        h, w, _ = image_bgr.shape
+
         # Desenha os landmarks se houver
         if results.multi_face_landmarks:
             for face_landmarks in results.multi_face_landmarks:
@@ -45,16 +48,21 @@ with mp_face_mesh.FaceMesh(
                     landmark_drawing_spec=landmark_spec,
                     connection_drawing_spec=connection_spec
                 )
-            # Pega altura e largura da imagem pra converter coordenadas normalizadas
-            h, w, _ = image_bgr.shape
 
-            # Exemplo: desenha bolinha maior no landmark 1 (entre os olhos)
-            lm_index = 168  # pode trocar pelo número do ponto que quiser (vai mudar a posicao da bolinha)
-            landmark = face_landmarks.landmark[lm_index]
-            cx, cy = int(landmark.x * w), int(landmark.y * h)
+                # Pegando o landmark 168 (você pode trocar pelo que quiser)
+                lm_index = 168
+                lm = face_landmarks.landmark[lm_index]
 
-            # Desenha bolinha vermelha maior nesse ponto
-            cv2.circle(image_bgr, (cx, cy), 8, (0, 0, 255), -1)  # (imagem, centro, raio, cor, preenchimento)
+                # Coordenadas normalizadas para pixels
+                cx = int(lm.x * w)
+                cy = int(lm.y * h)
+                cz = lm.z  # relativo, valor negativo = mais próximo
+
+                # Mostra as coordenadas no terminal
+                print(f"Posição no frame - X: {cx} px | Y: {cy} px | Z: {cz:.4f}")
+
+                # Desenha bolinha vermelha nesse ponto
+                cv2.circle(image_bgr, (cx, cy), 8, (0, 0, 255), -1)  # (imagem, centro, raio, cor, preenchimento)
 
         # Exibe o frame
         cv2.imshow('FaceMesh Tracking', image_bgr)
